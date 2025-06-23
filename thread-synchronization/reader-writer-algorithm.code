@@ -1,0 +1,73 @@
+// Simulation of Reader writers process synchronization.
+
+// mesg.h
+#ifndef MESG_H
+#define MESG_H
+
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+
+#define MKEY1 155434
+#define PERMS 0666
+
+typedef struct {
+    long mtype;
+    char mdata[50];
+} mesg_t;
+
+#endif
+
+
+
+// sender.c
+#include "mesg.h"
+
+int main() {
+    int mq_id, n;
+    mesg_t msg;
+    if ((mq_id = msgget(MKEY1, PERMS | IPC_CREAT)) < 0) {
+        perror("Sender: Error creating message queue");
+        exit(1);
+    }
+    msg.mtype = 1111L;
+    n = read(STDIN_FILENO, msg.mdata, sizeof(msg.mdata) - 1);
+    if (n < 0) {
+        perror("Sender: Error reading input");
+        exit(1);
+    }
+    msg.mdata[n] = '\0';
+    if (msgsnd(mq_id, &msg, sizeof(msg.mdata), 0) < 0) {
+        perror("Sender: Error sending message");
+        exit(1);
+    }
+    return 0;
+}
+
+
+
+// receiver.c
+#include "mesg.h"
+
+int main() {
+    int mq_id;
+    mesg_t msg;
+    if ((mq_id = msgget(MKEY1, PERMS | IPC_CREAT)) < 0) {
+        perror("Receiver: Error opening message queue");
+        exit(1);
+    }
+    if (msgrcv(mq_id, &msg, sizeof(msg.mdata), 1111L, 0) < 0) {
+        perror("Receiver: Error receiving message");
+        exit(1);
+    }
+    write(STDOUT_FILENO, msg.mdata, strlen(msg.mdata));
+    if (msgctl(mq_id, IPC_RMID, NULL) < 0) {
+        perror("Receiver: Error removing message queue");
+        exit(1);
+    }
+    return 0;
+}
